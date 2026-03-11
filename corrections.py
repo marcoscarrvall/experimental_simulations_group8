@@ -1,13 +1,11 @@
 import numpy as np
+from blockage_corrections import blockage_corrections
 
 
-# Parte de Marcos
-def blockage_corrections():
-    pass
 
 # Parte de Max
 def lift_interference_corrections():
     pass
 
 if __name__ == "__main__":
-    pass
+    blockage_corrections("ALLconfigs_processed_sortedByRun.csv")
