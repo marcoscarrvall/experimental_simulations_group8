@@ -84,11 +84,11 @@ if ~isempty(locsPos) && ~isempty(locsNeg)
 
     if max(RPS1P)>1.1*RPS || min(RPS1P)<0.9*RPS
         disp('Warning: RPS computed from 1P trigger signal differs more than 10% from motor reading.')
-        yAvg     = zeros(length(phIntp),6);
-        yStd     = zeros(length(phIntp),6);
-        yRevIntp = zeros(length(phIntp),6);
-        fSintp   = 0;
-        return
+        %yAvg     = zeros(length(phIntp),6);
+        %yStd     = zeros(length(phIntp),6);
+        %yRevIntp = zeros(length(phIntp),6);
+        %fSintp   = 0;
+        %return
     end
 
 else % no useable 1P signal available 
