@@ -2,6 +2,7 @@ close all
 clear
 clc
 
+cd 'C:\Users\SID-DRW\OneDrive\Escritorio\MDO\Assigment\XDSM\experimental_simulations_group8\MIC'
 %% Inputs
 % path to folder containing the measurement data
 fnFolder = '.\DATA';
