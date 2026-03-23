@@ -35,15 +35,15 @@ if __name__ == "__main__":
                     (df['de'] == delta_e) &
                     (df['V'] >= 38) & (df['V'] <= 42) &
                     (df['J'].between(J_target - 0.05, J_target + 0.05)) &
-                    (df['AoA_corrected'] <= 10)
-                ].sort_values(by='AoA_corrected')
+                    (df['AoA'] <= 10)
+                ].sort_values(by='AoA')
 
             if df_filtered.empty:
                 print(f"  No data for de={delta_e}, J={J_target}")
                 i += 1
                 continue
 
-            coeffs = np.polyfit(df_filtered['AoA_corrected'], df_filtered['CM25c_corrected'], 1)
+            coeffs = np.polyfit(df_filtered['AoA'], df_filtered['CM25c'], 1)
             coeffs_list.append((delta_e, 40, J_target, coeffs))
             
             if J_target == 1.6: 
@@ -55,7 +55,7 @@ if __name__ == "__main__":
             else:
                 print(f"Unexpected J value: {J_target}, using dotted line.")
                 linestyle = ':'
-            plt.plot(df_filtered['AoA_corrected'], df_filtered['CM25c_corrected'],
+            plt.plot(df_filtered['AoA'], df_filtered['CM25c'],
                      marker='x', color=colors[i], label=f'$\\delta_e$={delta_e}°, J={J_target}', linestyle=linestyle)
         i += 1
 
@@ -104,4 +104,57 @@ if __name__ == "__main__":
         plt.ylabel('Trim Elevator Deflection $\\delta_e$ (°)')
         plt.grid()
         plt.legend()
+        plt.show()
+
+        # ── Longitudinal stability dCm/dAlpha vs J ────────────────────────────────
+        plt.figure()
+        stability_data = []
+
+        for V_target, V_low, V_high in [(40, 38, 42), (20, 18, 22)]:
+            for delta_e in [5, 0, -5]:
+                for J_target in [1.6, 1.9, 2.2]:
+                    df_filtered = df[
+                        (df['de'] == delta_e) &
+                        (df['V'] >= V_low) & (df['V'] <= V_high) &
+                        (df['J'].between(J_target - 0.05, J_target + 0.05)) &
+                        (df['AoA'] <= 10)
+                    ].sort_values(by='AoA')
+
+                    if df_filtered.empty:
+                        print(f"  No data for V={V_target}, de={delta_e}, J={J_target}")
+                        continue
+
+                    coeffs = np.polyfit(df_filtered['AoA'], df_filtered['CM25c'], 1)
+                    dCm_dAlpha = coeffs[0]
+                    stability_data.append((V_target, delta_e, J_target, dCm_dAlpha))
+
+        color_map  = {40: 'steelblue', 20: 'tomato'}
+        marker_map = {40: 'o',         20: 's'}
+        style_map  = {5: '--',         0: '-',   -5: '-.'}
+
+        # One legend entry per V (color) and one per delta_e (linestyle)
+        handles, labels = [], []
+        for V_target, marker, color in [(40, 'o', 'steelblue'), (20, 's', 'tomato')]:
+            for delta_e, linestyle in [(5, '--'), (0, '-'), (-5, '-.')]:
+                V_de_data = [
+                    (item[2], item[3]) for item in stability_data
+                    if item[0] == V_target and item[1] == delta_e
+                ]
+                if not V_de_data:
+                    print(f"No data to plot for V={V_target}, de={delta_e}")
+                    continue
+
+                J_vals, dCm_vals = zip(*sorted(V_de_data))
+                line, = plt.plot(J_vals, dCm_vals,
+                                marker=marker, color=color, linestyle=linestyle,
+                                linewidth=1.5, markersize=7)
+                handles.append(line)
+                labels.append(f'V = {V_target} m/s, $\\delta_e$ = {delta_e}°')
+
+        plt.axhline(0, color='k', linestyle='-', linewidth=0.5)
+        plt.xlabel('Advance Ratio $J$')
+        plt.ylabel(r'$\partial C_{m_{25c}} / \partial \alpha$ (1/°)')
+        plt.title('Longitudinal Stability Derivative vs Advance Ratio')
+        plt.legend(handles, labels)
+        plt.grid()
         plt.show()
