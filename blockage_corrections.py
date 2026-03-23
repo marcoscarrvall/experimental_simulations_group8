@@ -57,6 +57,9 @@ def blockage_corrections(filename="ALLconfigs_processed_sortedByRun.csv"):
     tau_w = 0.882;  K1_w = 1.02   # Wing      (K1, NACA-64 series, t/c=0.15)
     tau_h = 0.860;  K1_h = 1.02   # H-tail    (K1, NACA-64 series, t/c=0.15)
     tau_v = 0.861;  K1_v = 1.035   # V-tail    (K1, 4-digit series, t/c=0.15)
+    tau_SSaft = 0.861; K1_SSaft = 1.02   # SSaft     (K1, 4-digit series, t/c=0.12)  
+    tau_SSwing = 0.861; K1_SSwing = 1.02   # SWing     (K1, 4-digit series, t/c=0.12)
+
 
     # Component volumes [m³]  (Table 3 of report)
     V_f = 0.0160632
@@ -64,6 +67,8 @@ def blockage_corrections(filename="ALLconfigs_processed_sortedByRun.csv"):
     V_w = 0.0030229
     V_h = 0.0009751
     V_v = 0.0003546
+    V_SSaft = 0.0004491
+    V_SSwing = 0.0017648
 
     # Wing reference area (used for wake blockage)
     S_ref = 0.2172           # [m²]  (standard Fokker F27 scaled model value)
@@ -95,8 +100,9 @@ def blockage_corrections(filename="ALLconfigs_processed_sortedByRun.csv"):
     eps_sb_w = K1_w * tau_w * V_w / C32
     eps_sb_h = K1_h * tau_h * V_h / C32
     eps_sb_v = K1_v * tau_v * V_v / C32
-
-    eps_sb_total = eps_sb_f + 2*eps_sb_n + eps_sb_w + eps_sb_h + eps_sb_v
+    eps_sb_SSaft = K1_SSaft * tau_SSaft * V_SSaft / C32
+    eps_sb_SSwing = K1_SSwing * tau_SSwing * V_SSwing / C32
+    eps_sb_total = eps_sb_f + 2*eps_sb_n + eps_sb_w + eps_sb_h + eps_sb_v + eps_sb_SSaft + 2*eps_sb_SSwing
 
     # ─────────────────────────────────────────────
     # 3. HELPER FUNCTIONS (row-wise)
@@ -186,7 +192,7 @@ def blockage_corrections(filename="ALLconfigs_processed_sortedByRun.csv"):
     blockage_cols = df.apply(compute_blockages, axis=1)
     df_out = pd.concat([df, blockage_cols], axis=1)
 
-    """print("=" * 60)
+    print("=" * 60)
     print("CONSTANT BLOCKAGE COMPONENTS")
     print("=" * 60)
     print(f"  Tunnel cross-section C          = {C:.4f} m²")
@@ -195,8 +201,10 @@ def blockage_corrections(filename="ALLconfigs_processed_sortedByRun.csv"):
     print(f"  Solid blockage – Wing           = {eps_sb_w:.6f}")
     print(f"  Solid blockage – H-tail         = {eps_sb_h:.6f}")
     print(f"  Solid blockage – V-tail         = {eps_sb_v:.6f}")
+    print(f"  Solid blockage – SSaft          = {eps_sb_SSaft:.6f}")
+    print(f"  Solid blockage – SWing          = {eps_sb_SSwing:.6f}")
     print(f"  TOTAL solid blockage eps_sb     = {eps_sb_total:.6f}")
-    print()"""
+    print()
 
     """print("=" * 60)
     print("CORRECTION SUMMARY  (first 10 rows)")
