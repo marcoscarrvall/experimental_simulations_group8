@@ -18,6 +18,7 @@ df_tail_off = pd.read_csv(tail_off_file, sep='\s+', skiprows=[1])
 df_main['AoA_match'] = df_main['AoA'].round().astype(int)
 df_tail_off['AoA_match'] = df_tail_off['Alpha'].round().astype(int)
 
+# Velocity rounding works perfectly (e.g., 19.38 -> 20, 38.76 -> 40)
 df_main['V_match'] = (df_main['V'] / 10).round().astype(int) * 10
 df_tail_off['V_match'] = (df_tail_off['V'] / 10).round().astype(int) * 10
 
@@ -31,7 +32,7 @@ df = pd.merge(df_main, df_tail_off_subset, on=['AoA_match', 'V_match'], how='lef
 
 # --- NEW: APPLYING THE C_L_alpha LOOKUP TABLE (V & J only, de=0) ---
 
-# Create a dataframe using the 6 exact V and J combinations for de=0
+# Create a dataframe using your 6 exact V and J combinations for de=0
 cla_data = {
     'V_match': [40, 40, 40, 20, 20, 20],
     'J_match': [1.6, 1.9, 2.2, 1.6, 1.9, 2.2],
@@ -46,13 +47,15 @@ cla_data = {
 }
 df_cla = pd.DataFrame(cla_data)
 
-# Round J to 1 decimal place in the main data so it matches the table exactly
-df['J_match'] = df['J'].round(1) 
+# --- THE LENIENT ROUNDING FIX FOR J ---
+# Find the absolute closest nominal J value (1.6, 1.9, or 2.2) for each row
+nominal_Js = [1.6, 1.9, 2.2]
+df['J_match'] = df['J'].apply(lambda x: min(nominal_Js, key=lambda target: abs(target - x)) if pd.notna(x) else np.nan)
 
 # Merge the correct CLa values into the main dataframe
 df = pd.merge(df, df_cla, on=['V_match', 'J_match'], how='left')
 
-# ✅ NOW you can safely clean up all the matching columns at once!
+# NOW you can safely clean up all the matching columns at once!
 df.drop(columns=['AoA_match', 'V_match', 'J_match'], inplace=True)
 
 
@@ -80,17 +83,14 @@ CMuw = (1/8)*tau_2*(0.5*Cmac)*delta*area_ratio*df['CL_w']*Cla
 CMt = dCm_dalpha_t*delta*area_ratio*df['CL_w']*(1+tau_2t*lt)
 
 # 7. Calculate the correction terms using the newly matched 'CL_w'
-# Delta Alpha is multiplied by 57.3 to convert radians to degrees
 df['Delta_Alpha'] = delta * area_ratio * df['CL_w'] * (1+tau_2*(0.5*Cmac))*57.3 
 df['Delta_CD'] = delta * area_ratio * (df['CL_w'] ** 2)
-
-# IMPORTANT FIX: Removed * 57.3 from here. CM is dimensionless!
 df['Delta_Cm'] = (CMuw+CMt) 
 
-# 8. Apply the corrections to create new columns
-df['AoA_corrected'] = df['AoA'] + df['Delta_Alpha']
-df['CD_corrected'] = df['CD'] + df['Delta_CD']
-df['CM25c_corrected'] = df['CM25c'] - df['Delta_Cm']  # Note the subtraction!
+# 8. Apply the corrections by OVERWRITING the original columns
+df['AoA'] = df['AoA'] + df['Delta_Alpha']
+df['CD'] = df['CD'] + df['Delta_CD']
+df['CM25c'] = df['CM25c'] + df['Delta_Cm']  
 
 # Check for missing matches (Tail-off CL_w)
 missing_matches = df['CL_w'].isna().sum()
@@ -100,10 +100,22 @@ if missing_matches > 0:
 # Check for missing slopes (C_L_alpha)
 missing_slopes = df['CL_alpha_mapped'].isna().sum()
 if missing_slopes > 0:
-    print(f"WARNING: {missing_slopes} rows could not find a matching CL_alpha in the lookup table.")
+    print(f"WARNING: {missing_slopes} rows could not find a matching CL_alpha in the lookup table. Check your J=0 or wind-off runs.")
 
-# 9. Save back to the main file (or a new file)
+# --- FINAL FORMATTING ---
+
+# 9. Filter to keep exactly the requested columns
+final_columns = [
+    'config', 'de', 'dr', 'run', 'AoA', 'AoS', 'V', 'Re', 
+    'rpsM2', 'J', 'CL', 'CD', 'CM25c', 'CYaw', 
+    'eps_total', 'eps_sb', 'eps_wb0'
+]
+
+# Create the final dataframe with only these columns
+df_final = df[final_columns]
+
+# 10. Save back to the main file (or a new file)
 output_filename = 'fully_corrected_data.csv'
-df.to_csv(output_filename, index=False)
+df_final.to_csv(output_filename, index=False)
 
 print(f"Data successfully matched and corrections applied! Saved to {output_filename}")
