@@ -1,14 +1,13 @@
 import pandas as pd
+import numpy as np
 
 # 1. Define filenames
 main_file = 'blockage_corrected_data.csv'   # Your main data file
-
 # Updated path based on your folder structure!
-tail_off_file = 'TAILOFF\TAILOFF/unc_tailOff_beta0_balance.txt' 
+tail_off_file = r'TAILOFF\TAILOFF/unc_tailOff_beta0_balance.txt' 
 
 # 2. Load datasets
 df_main = pd.read_csv(main_file)
-
 # We use skiprows=[1] to skip the second row that contains the units!
 df_tail_off = pd.read_csv(tail_off_file, sep='\s+', skiprows=[1])
 
@@ -26,37 +25,35 @@ df_tail_off['V_match'] = (df_tail_off['V'] / 10).round().astype(int) * 10
 df_tail_off_subset = df_tail_off[['AoA_match', 'V_match', 'CL']].copy()
 df_tail_off_subset.rename(columns={'CL': 'CL_w'}, inplace=True)
 
-# 5. Merge the datasets
+# 5. Merge the datasets (Tail-off CL)
 df = pd.merge(df_main, df_tail_off_subset, on=['AoA_match', 'V_match'], how='left')
-df.drop(columns=['AoA_match', 'V_match'], inplace=True)
 
 
-# --- NEW: APPLYING THE C_L_alpha LOOKUP TABLE ---
-# Create a dataframe using the exact values from your Excel image
-# --- NEW: APPLYING THE C_L_alpha LOOKUP TABLE ---
-# Added the 'de0dr0_extra' configuration to catch those missing 10 rows!
+# --- NEW: APPLYING THE C_L_alpha LOOKUP TABLE (V & J only, de=0) ---
+
+# Create a dataframe using the 6 exact V and J combinations for de=0
 cla_data = {
-    'config': ['de0dr0', 'de0dr0', 'de0dr0', 'de0dr0', 'de0dr0', 
-               'de5dr0', 'de5dr0', 'de5dr0', 
-               'dem5dr0', 'dem5dr0', 'dem5dr0',
-               'de0dr0_extra', 'de0dr0_extra'], # <-- Added missing config
-    'J_match': [1.5, 1.6, 1.8, 1.9, 2.2, 
-                1.6, 1.9, 2.2, 
-                1.6, 1.9, 2.2,
-                1.6, 2.2],                      # <-- J values for the extra runs
-    'CL_alpha_mapped': [0.11714, 0.10850, 0.10664, 0.10427, 0.10432, 
-                        0.11304, 0.10542, 0.10260, 
-                        0.10580, 0.10505, 0.10443,
-                        0.10850, 0.10432]       # <-- Copied slopes from de0dr0
+    'V_match': [40, 40, 40, 20, 20, 20],
+    'J_match': [1.6, 1.9, 2.2, 1.6, 1.9, 2.2],
+    'CL_alpha_mapped': [
+        0.107854,  # <-- exact value for V=40, J=1.6
+        0.106074,  # <-- exact value for V=40, J=1.9
+        0.105445,  # <-- exact value for V=40, J=2.2
+        0.106699,  # <-- exact value for V=20, J=1.6
+        0.104644,  # <-- exact value for V=20, J=1.9
+        0.103870  # <-- exact value for V=20, J=2.2
+    ] 
 }
 df_cla = pd.DataFrame(cla_data)
 
-# Round J to 1 decimal place in the main data so it matches the table
-df['J_match'] = df['J'].round(1)
+# Round J to 1 decimal place in the main data so it matches the table exactly
+df['J_match'] = df['J'].round(1) 
 
-# Merge the correct CLa values into the main dataframe based on config and J
-df = pd.merge(df, df_cla, on=['config', 'J_match'], how='left')
-df.drop(columns=['J_match'], inplace=True) # clean up
+# Merge the correct CLa values into the main dataframe
+df = pd.merge(df, df_cla, on=['V_match', 'J_match'], how='left')
+
+# ✅ NOW you can safely clean up all the matching columns at once!
+df.drop(columns=['AoA_match', 'V_match', 'J_match'], inplace=True)
 
 
 # --- THE CORRECTION MATH ---
@@ -83,9 +80,12 @@ CMuw = (1/8)*tau_2*(0.5*Cmac)*delta*area_ratio*df['CL_w']*Cla
 CMt = dCm_dalpha_t*delta*area_ratio*df['CL_w']*(1+tau_2t*lt)
 
 # 7. Calculate the correction terms using the newly matched 'CL_w'
+# Delta Alpha is multiplied by 57.3 to convert radians to degrees
 df['Delta_Alpha'] = delta * area_ratio * df['CL_w'] * (1+tau_2*(0.5*Cmac))*57.3 
 df['Delta_CD'] = delta * area_ratio * (df['CL_w'] ** 2)
-df['Delta_Cm'] = (CMuw+CMt) * 57.3
+
+# IMPORTANT FIX: Removed * 57.3 from here. CM is dimensionless!
+df['Delta_Cm'] = (CMuw+CMt) 
 
 # 8. Apply the corrections to create new columns
 df['AoA_corrected'] = df['AoA'] + df['Delta_Alpha']
