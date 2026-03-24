@@ -4,19 +4,19 @@ import numpy as np
 # 1. Define filenames
 main_file = 'blockage_corrected_data.csv'   # Your main data file
 # Updated path based on your folder structure!
-tail_off_file = r'TAILOFF\TAILOFF/unc_tailOff_beta0_balance.txt' 
+tail_off_file = 'processed_tailOff_beta0.csv' 
 
 # 2. Load datasets
 df_main = pd.read_csv(main_file)
-# We use skiprows=[1] to skip the second row that contains the units!
-df_tail_off = pd.read_csv(tail_off_file, sep='\s+', skiprows=[1])
+# FIX APPLIED HERE: Removed sep='\s+' and skiprows=[1] so pandas reads the CSV correctly
+df_tail_off = pd.read_csv(tail_off_file)
 
 
 # --- THE MATCHING PROCESS ---
 
 # 3. Create rounded matching columns in BOTH datasets
 df_main['AoA_match'] = df_main['AoA'].round().astype(int)
-df_tail_off['AoA_match'] = df_tail_off['Alpha'].round().astype(int)
+df_tail_off['AoA_match'] = df_tail_off['AoA'].round().astype(int)
 
 # Velocity rounding works perfectly (e.g., 19.38 -> 20, 38.76 -> 40)
 df_main['V_match'] = (df_main['V'] / 10).round().astype(int) * 10
@@ -42,7 +42,7 @@ cla_data = {
         0.105445,  # <-- exact value for V=40, J=2.2
         0.106699,  # <-- exact value for V=20, J=1.6
         0.104644,  # <-- exact value for V=20, J=1.9
-        0.103870  # <-- exact value for V=20, J=2.2
+        0.103870   # <-- exact value for V=20, J=2.2
     ] 
 }
 df_cla = pd.DataFrame(cla_data)
