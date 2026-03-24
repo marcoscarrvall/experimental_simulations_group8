@@ -8,15 +8,18 @@ close all; clear; clc;
 % Working directory
 baseDir = 'C:\Users\SID-DRW\OneDrive\Escritorio\MDO\Assigment\XDSM\experimental_simulations_group8\MIC';
 cd(baseDir);
-
-% Decide comparison 1 for J and 0 for AoA
-option = 0;
+resultsTable = Prop_thrust();
+% Decide comparison 2 for propeller off-data comparison, 1 for J change comparison and 0 for AoA change comparison
+option = 1;
 if option == 0
     fnFolder = '.\DATA\alpha_change';
     fn = {'acoustic_test_a.txt'}; 
-else
+elseif option == 1
     fnFolder = '.\DATA\J_change';
     fn = {'acoustic_test_J.txt'}; 
+elseif option == 2
+    fnFolder = '.\DATA\prop_off';
+    fn = {'propOff_dE000_dR000.txt'};
 end
 
 % Constants
@@ -78,8 +81,23 @@ for i = 1:length(fn)
             P1     = P_mag(1:floor(N_pavg/2)+1);
             P1(2:end-1) = 2 * P1(2:end-1);
             p_rms_f     = P1 / sqrt(2);
-            
-            T_dummy = 15; % Placeholder thrust
+
+            tol_alpha = 0.6;  % Tolerance for AoA [deg]
+            tol_J     = 0.1;  % Tolerance for Advance Ratio [-]
+            tol_V     = 2.0;  % Tolerance for Velocity [m/s]
+
+            current_AoA = opp{i}.AoA(j);
+            current_J   = MIC{i}.J{j};
+            current_V   = opp{i}.vInf(j);
+
+            % Find the index in resultsTable that matches these three variables
+            matchIdx = find(abs(resultsTable.Alpha_deg - current_AoA) < tol_alpha & ...
+                            abs(resultsTable.J - current_J) < tol_J & ...
+                            abs(resultsTable.V_ms - current_V) < tol_V, 1);
+
+            T_dummy = resultsTable.Thrust_Prop_N(matchIdx);
+
+
             MIC{i}.Pi_noise{j} = (p_rms_f * (D^2)) / T_dummy;
             MIC{i}.f_norm{j}   = (opp{i}.RPS_M1(j) * (0:floor(N_pavg/2))') / (opp{i}.RPS_M1(j) * Nb);
         catch
@@ -98,14 +116,31 @@ set(0, 'DefaultLineLineWidth', 1.2);
 
 % Plot 1: Broadband SPSL
 figure('Name', 'Broadband Analysis', 'Color', 'w'); hold on; grid on;
+% --- Plot 1: Broadband SPSL vs Frequency (Log-Linear) ---
+figure('Name', 'Broadband Analysis: Propeller On vs. Off', 'Color', 'w');
+hold on; grid on; box on;
+
 for j = 1:numRuns
     if ~isempty(MIC{1}.f_broad{j})
         lbl = sprintf('AoA = %.1f^o, J = %.2f', opp{1}.AoA(j), MIC{1}.J{j});
         semilogx(MIC{1}.f_broad{j}, MIC{1}.SPSL{j}, 'DisplayName', lbl);
     end
 end
-xlabel('Frequency [Hz]'); ylabel('SPSL [dB/Hz]'); legend('Location', 'eastoutside');
 
+
+% --- Axis Formatting ---
+xlim([100 fS/2]); % Set range from 100 Hz to Nyquist limit
+
+% Define where the major numbers appear
+xticks([100 1000 10000 25600]); 
+xticklabels({'10^2', '10^3', '10^4', '2.5\cdot10^4'});
+
+% Turn on the minor grid to show the 2, 3, 4... lines between powers of 10
+grid on;
+grid minor;
+set(gca, 'XMinorGrid', 'on', 'YMinorGrid', 'on');xlabel('Frequency [Hz]'); 
+ylabel('SPSL [dB/Hz]');
+legend('Location', 'northeast');
 % Plot 2: Non-Dimensional Tonal Noise (Collapse Check)
 
 figure('Name', 'Non-Dimensional Tonal Noise', 'Color', 'w'); hold on; grid on;
@@ -116,7 +151,7 @@ for j = 1:numRuns
     end
 end
 xlabel('Harmonic Order (f / f_{BPF})'); ylabel('20 log_{10}(\Pi_{noise})'); xlim([0 10]);
-legend('Location', 'eastoutside');
+legend('Location', 'northeast');
 
 % Plot 3: Phase-Averaged Signal
 figure('Name', 'Phase-Averaged Signal', 'Color', 'w'); hold on; grid on;
@@ -127,4 +162,4 @@ for j = 1:numRuns
     end
 end
 xlabel('Phase Angle [rad]'); ylabel('Acoustic Pressure [Pa]');
-legend('Location', 'eastoutside');
+legend('Location', 'northeast');
