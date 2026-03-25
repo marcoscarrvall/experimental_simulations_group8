@@ -10,7 +10,7 @@ baseDir = 'C:\Users\SID-DRW\OneDrive\Escritorio\MDO\Assigment\XDSM\experimental_
 cd(baseDir);
 resultsTable = Prop_thrust();
 % Decide comparison 2 for propeller off-data comparison, 1 for J change comparison and 0 for AoA change comparison
-option = 1;
+option = 3;
 if option == 0
     fnFolder = '.\DATA\alpha_change';
     fn = {'acoustic_test_a.txt'}; 
@@ -20,6 +20,9 @@ elseif option == 1
 elseif option == 2
     fnFolder = '.\DATA\prop_off';
     fn = {'propOff_dE000_dR000.txt'};
+elseif option == 3
+    fnFolder = '.\DATA\mandatory_test_point';
+    fn = {'acoustic_test_16.txt'};
 end
 
 % Constants

@@ -34,6 +34,7 @@ function [resultsTable] = Prop_thrust()
     numRuns = height(dataOn);
     thrusts = zeros(numRuns, 1);
     Js      = zeros(numRuns, 1);
+    cts     = zeros(numRuns, 1);
 
     for j = 1:numRuns
         % Calculate Advance Ratio J
@@ -62,11 +63,12 @@ function [resultsTable] = Prop_thrust()
         % --- Calculate Thrust ---
         % T = -(X_on - X_off). Divided by 2 for thrust per propeller.
         thrusts(j) = abs(-(x_on - x_off) / 2); 
+        cts(j) = thrusts(j) / (rho * nrotors(j)^2 * D^4); 
     end
 
     %% 6. Final Table
-    resultsTable = table(runs, alphas, vs, Js, thrusts, ...
-        'VariableNames', {'Run', 'Alpha_deg', 'V_ms', 'J', 'Thrust_Prop_N'});
+    resultsTable = table(runs, alphas, vs, Js, thrusts, cts, ...
+        'VariableNames', {'Run', 'Alpha_deg', 'V_ms', 'J', 'Thrust_Prop_N', 'CT'});
     
     % Optional: display the first few rows to verify
     disp('Propeller Thrust Estimation Table (Using Fully Corrected CSVs):');
