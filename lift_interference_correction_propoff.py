@@ -8,7 +8,7 @@ from scipy import stats
 
 propoff_raw_file = 'propOff_processed_byRun.csv'
 main_file        = 'blockage_corrected_data_propoff.csv'
-tail_off_file    = r'TAILOFF\TAILOFF/unc_tailOff_beta0_balance.txt'
+tail_off_file    = 'processed_tailOff_beta0.csv'
 output_file      = 'fully_corrected_data_propoff.csv'
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -72,14 +72,14 @@ else:
 # ─────────────────────────────────────────────────────────────────────────────
 
 df_main     = pd.read_csv(main_file)
-df_tail_off = pd.read_csv(tail_off_file, sep=r'\s+', skiprows=[1])
+df_tail_off = pd.read_csv(tail_off_file)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. MATCH & MERGE TAIL-OFF CL_w
 # ─────────────────────────────────────────────────────────────────────────────
 
 df_main['AoA_match']     = df_main['AoA'].round().astype(int)
-df_tail_off['AoA_match'] = df_tail_off['Alpha'].round().astype(int)
+df_tail_off['AoA_match'] = df_tail_off['AoA'].round().astype(int)
 
 df_main['V_match']     = (df_main['V'] / 10).round().astype(int) * 10
 df_tail_off['V_match'] = (df_tail_off['V'] / 10).round().astype(int) * 10
