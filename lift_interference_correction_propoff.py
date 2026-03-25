@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from scipy import stats
+from scipy.interpolate import interp1d
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. FILENAMES
@@ -30,12 +31,14 @@ df_clean = df_raw[
 # Assign nominal velocity bucket (20 or 40 m/s)
 df_clean['V_nom'] = (df_clean['V'] / 10).round().astype(int) * 10
 
-# Assign nominal AoA bucket — keep only rows near -4, 0, or 8 degrees
-aoa_targets = [-4, 0, 8]
+# Explicitly map anything around -5° or -4° to the -4° bucket for the slope fit
 def nearest_aoa(aoa):
-    nearest = min(aoa_targets, key=lambda t: abs(t - aoa))
-    if abs(aoa - nearest) <= 1.5:   # tolerance of ±1.5°
-        return nearest
+    if -6.5 <= aoa <= -2.5:   # Catches all -5 and -4 data points
+        return -4
+    elif -1.5 <= aoa <= 1.5:  # Catches all 0 data points
+        return 0
+    elif 6.5 <= aoa <= 9.5:   # Catches all 8 data points
+        return 8
     return np.nan
 
 df_clean['AoA_nom'] = df_clean['AoA'].apply(nearest_aoa)
@@ -74,29 +77,50 @@ else:
 df_main     = pd.read_csv(main_file)
 df_tail_off = pd.read_csv(tail_off_file)
 
+# Strip hidden whitespace from all column headers in both files
+df_main.columns = df_main.columns.str.strip()
+df_tail_off.columns = df_tail_off.columns.str.strip()
+
 # ─────────────────────────────────────────────────────────────────────────────
-# 4. MATCH & MERGE TAIL-OFF CL_w
+# 4. MATCH TAIL-OFF CL_w (Using Continuous Interpolation)
 # ─────────────────────────────────────────────────────────────────────────────
 
-df_main['AoA_match']     = df_main['AoA'].round().astype(int)
-df_tail_off['AoA_match'] = df_tail_off['AoA'].round().astype(int)
+# Clean the tail-off data and assign nominal velocities
+df_tail_off_clean = df_tail_off.dropna(subset=['CL', 'AoA', 'V']).copy()
+df_tail_off_clean['V_nom'] = (df_tail_off_clean['V'] / 10).round().astype(int) * 10
 
-df_main['V_match']     = (df_main['V'] / 10).round().astype(int) * 10
-df_tail_off['V_match'] = (df_tail_off['V'] / 10).round().astype(int) * 10
+# Create an interpolation function (curve fit) for each velocity bucket
+clw_interpolators = {}
+for v_nom, grp in df_tail_off_clean.groupby('V_nom'):
+    # Sort and remove duplicate AoA points to ensure a clean interpolation curve
+    grp = grp.sort_values('AoA').drop_duplicates(subset=['AoA'])
+    if len(grp) > 1:
+        # fill_value='extrapolate' safely estimates CL if the main dataset goes slightly past the tail-off AoA limits
+        clw_interpolators[v_nom] = interp1d(grp['AoA'], grp['CL'], kind='linear', fill_value='extrapolate')
 
-df_tail_off_subset = df_tail_off[['AoA_match', 'V_match', 'CL']].copy()
-df_tail_off_subset.rename(columns={'CL': 'CL_w'}, inplace=True)
+# Assign nominal velocity to the main dataset to know which curve to use
+df_main['V_match'] = (df_main['V'] / 10).round().astype(int) * 10
 
-df = pd.merge(df_main, df_tail_off_subset, on=['AoA_match', 'V_match'], how='left')
+# Safely extract the exact CL_w for the exact AoA
+def get_clw(row):
+    v = row['V_match']
+    aoa = row['AoA'] # Uses the exact, unrounded AoA
+    if v in clw_interpolators:
+        return float(clw_interpolators[v](aoa))
+    return np.nan
+
+df_main['CL_w'] = df_main.apply(get_clw, axis=1)
+
+# Transition df_main to 'df' for the rest of the script
+df = df_main.copy()
 
 # Map the fitted CL_alpha onto each row by its nominal velocity
-df['V_match'] = (df['V'] / 10).round().astype(int) * 10
 df['CL_alpha_mapped'] = df['V_match'].map(cla_propoff).fillna(cla_fallback)
 
-df.drop(columns=['AoA_match', 'V_match'], inplace=True)
+df.drop(columns=['V_match'], inplace=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 5. GEOMETRIC & TUNNEL CONSTANTS  (identical to original script)
+# 5. GEOMETRIC & TUNNEL CONSTANTS
 # ─────────────────────────────────────────────────────────────────────────────
 
 S      = 0.2172
@@ -145,6 +169,13 @@ missing_cla = (df['CL_alpha_mapped'] == cla_fallback).sum()
 if missing_cla > 0:
     print(f"NOTE: {missing_cla} rows used the fallback CL_alpha = {cla_fallback:.6f} "
           f"(no fit available for their velocity bucket).")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8.5 FIX MISSING REYNOLDS NUMBER
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Reconstruct the blank Re column using the tunnel's linear V to Re relationship
+df['Re'] = df['V'] * 10965
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 9. OUTPUT
