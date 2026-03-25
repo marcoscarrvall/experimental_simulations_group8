@@ -128,13 +128,13 @@ if __name__ == "__main__":
                     dCm_dAlpha = coeffs[0]
                     stability_data.append((V_target, delta_e, J_target, dCm_dAlpha))
 
-        color_map  = {40: 'steelblue', 20: 'tomato'}
+        color_map  = {40: 'navy', 20: 'lightsteelblue'}
         marker_map = {40: 'o',         20: 's'}
         style_map  = {5: '--',         0: '-',   -5: '-.'}
 
         # One legend entry per V (color) and one per delta_e (linestyle)
         handles, labels = [], []
-        for V_target, marker, color in [(40, 'o', 'steelblue'), (20, 's', 'tomato')]:
+        for V_target, marker, color in [(40, 'o', 'navy'), (20, 's', 'lightsteelblue')]:
             for delta_e, linestyle in [(5, '--'), (0, '-'), (-5, '-.')]:
                 V_de_data = [
                     (item[2], item[3]) for item in stability_data
@@ -154,7 +154,57 @@ if __name__ == "__main__":
         plt.axhline(0, color='k', linestyle='-', linewidth=0.5)
         plt.xlabel('Advance Ratio $J$')
         plt.ylabel(r'$\partial C_{m_{25c}} / \partial \alpha$ (1/°)')
-        plt.title('Longitudinal Stability Derivative vs Advance Ratio')
+        plt.ylim(-0.05, -0.03)
         plt.legend(handles, labels)
         plt.grid()
         plt.show()
+
+        """# ── Trim angle of attack (Cm = 0) for every V, delta_e, J ────────────────
+        print("\n" + "=" * 65)
+        print("TRIM ANGLE OF ATTACK  (C_m = 0,  linear fit on AoA ≤ 10°)")
+        print("=" * 65)
+    
+        trim_rows = []
+    
+        for V_target, V_low, V_high in [(40, 38, 42), (20, 18, 22)]:
+            for delta_e in [5, 0, -5]:
+                for J_target in [1.6, 1.9, 2.2]:
+                    df_filtered = df[
+                        (df['de'] == delta_e) &
+                        (df['V'] >= V_low) & (df['V'] <= V_high) &
+                        (df['J'].between(J_target - 0.05, J_target + 0.05)) &
+                        (df['AoA'] <= 10)
+                    ].sort_values(by='AoA')
+    
+                    if df_filtered.empty:
+                        print(f"  No data for V={V_target}, de={delta_e}, J={J_target}  — skipped")
+                        continue
+    
+                    # Linear fit:  Cm = m * AoA + b  →  AoA_trim = -b / m
+                    m, b = np.polyfit(df_filtered['AoA'], df_filtered['CM25c'], 1)
+    
+                    if abs(m) < 1e-10:
+                        aoa_trim = None
+                        print(f"  V={V_target:2d}, de={delta_e:+3d}°, J={J_target}: "
+                            f"slope ≈ 0 — no trim solution")
+                    else:
+                        aoa_trim = -b / m
+    
+                    trim_rows.append({
+                        'V (m/s)'       : V_target,
+                        'delta_e (°)'   : delta_e,
+                        'J'             : J_target,
+                        'slope dCm/dα'  : round(m, 6),
+                        'AoA_trim (°)'  : round(aoa_trim, 3) if aoa_trim is not None else None,
+                    })
+    
+        # Pretty-print as a table
+        df_trim = pd.DataFrame(trim_rows)
+        pd.set_option('display.float_format', '{:.3f}'.format)
+        pd.set_option('display.max_rows', 50)
+        print(df_trim.to_string(index=False))
+    
+        # Save to CSV
+        trim_csv = 'trim_aoa_results.csv'
+        df_trim.to_csv(trim_csv, index=False)
+        print(f"\nTrim results saved to '{trim_csv}'")"""
